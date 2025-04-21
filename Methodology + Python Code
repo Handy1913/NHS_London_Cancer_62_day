@@ -1,0 +1,251 @@
+Source 62-day referal extracted from the NHS website: "https://www.england.nhs.uk/statistics/statistical-work-areas/cancer-waiting-times/#cwt-statistics-up-to-september-2023".
+Provider specific file: "CWT CRS – Provider Time Series Apr 2021 – Feb 2025 with Revisions"
+File was renamed to aid in handling: NHS_London_62.xlsx
+All non-London specific trusts were filtered out of the NHS_London_62.xlsx before further processing. 
+
+Stage 1. 
+Python was used to reformat NHS data from long format to a short column to aid in handling data.
+Percentage of Patients outside of the threshold were calcuated using Total recommended - total within the threshold. 
+Longitude and Latitude information for each trust was gathered using https://www.latlong.net
+
+Python Stage 1. Code:
+#Data from NHS_London_62.xlsx was organised within excel to narrow down data to specific London Trusts
+#Code to extract and transform data from NHS_London_62.xlsx 
+import pandas as pd
+import numpy as np
+
+# Load the Excel file without headers
+df = pd.read_excel('NHS_London_62.xlsx', header=None)
+
+# Create list for transformed data
+transformed_data = []
+
+# Starting row for providers (adjust if needed)
+provider_start_row = 2  # Usually row 3 in Excel (2 in zero-based indexing)
+
+# Iterate through each provider
+for i in range(provider_start_row, len(df)):
+    provider = df.iloc[i, 0]  # Provider in column A
+    
+    # Skip if not a valid provider
+    if pd.isna(provider):
+        continue
+    
+    # Process each date group (columns B,C,D, then E,F,G, etc.)
+    col = 1  # Start with column B (index 1)
+    while col < len(df.columns):
+        # Get date from row 1
+        date_value = df.iloc[0, col]
+        
+        # Handle merged cells - if empty, it's part of a merged cell
+        if pd.isna(date_value):
+            # For BCD merged cells, we look at B
+            # If we're at C or D (index 2 or 3), look back to B (index 1)
+            if col % 3 != 1:  # If not at position B (not at start of 3-column group)
+                date_value = df.iloc[0, col - (col % 3 - 1)]
+        
+        # Skip if no valid date
+        if pd.isna(date_value):
+            col += 1
+            continue
+            
+        # Format date
+        try:
+            if not isinstance(date_value, pd.Timestamp):
+                date_value = pd.to_datetime(date_value)
+            date_str = date_value.strftime('%b %Y')
+        except:
+            col += 1
+            continue
+        
+        # Get total (column B of the group - col % 3 = 1)
+        total_col = col
+        if col % 3 != 1:
+            total_col = col - (col % 3 - 1)
+        
+        total = df.iloc[i, total_col]
+        
+        # Get percentage (column D of the group - col % 3 = 0)
+        percent_col = total_col + 2
+        if percent_col >= len(df.columns):
+            percentage = np.nan
+        else:
+            percentage = df.iloc[i, percent_col]
+        
+        # Add data if total exists
+        if not pd.isna(total):
+            transformed_data.append({
+                'Provider': provider,
+                'Date': date_str,
+                'Total_Recommended': total,
+                'Percentage_Within_85_Standard': percentage
+            })
+        
+        # Move to next date group (B,C,D → E,F,G)
+        col += 3
+        
+# Create final dataframe
+result_df = pd.DataFrame(transformed_data)
+
+# Save to Excel
+result_df.to_excel('transformed_data.xlsx', index=False)
+
+#Percentage of patients outside of the 85% was calculated within excel
+
+Stage 2. 
+Five files were downloaded from the NHS website "https://www.england.nhs.uk/statistics/statistical-work-areas/cancer-waiting-times/#cwt-statistics-up-to-september-2023".
+The five files: 
+CWT CRS Oct 2024 to Feb 2025 Data Extract (Provider) (XLSX, 1.8MB)
+CWT CRS Apr 2024 to Sep 2024 Data Extract (Provider) Final (XLSX, 2.19MB)
+CWT CRS Oct 2023 to Mar 2024 Data Extract (Provider) Final (XLSX, 2.7MB)
+CWT CRS Apr 2023 to Sep 2023 Data Extract (Provider) Final (XLSX, 2.2MB)
+CWT CRS 2022-23 Data Extract (Provider) Final (XLSX, 4.9MB). 
+
+All files were renamed in chronology order to aid in handling:
+Cancer_type_1 = CWT CRS 2022-23 Data Extract (Provider) Final (XLSX, 4.9MB). 
+Cancer_type_2 = CWT CRS Apr 2023 to Sep 2023 Data Extract (Provider) Final (XLSX, 2.2MB
+Cancer_type_3 = CWT CRS Oct 2023 to Mar 2024 Data Extract (Provider) Final (XLSX, 2.7MB)
+Cancer_type_4 = CWT CRS Apr 2024 to Sep 2024 Data Extract (Provider) Final (XLSX, 2.19MB)
+Cancer_type_5 = CWT CRS Oct 2024 to Feb 2025 Data Extract (Provider) (XLSX, 1.8MB)
+
+All five files were placed into a directory file "Cancer_NHS_type"
+Python was used to extrcat London Specific trusts data, isolated using ORG_codes across all provider files, and compile the collected data into one File. 
+Data was organised further within excel by filtering out non-62-days referal entries and suspected cases. 
+
+Python Stage 2. Code: 
+#Code to combine Provider based data excel files from 2022-2025 for trust specific information using ORG_codes 
+#Code is combined and compiled into one file in the same directory
+import pandas as pd
+import os
+
+# London hospital provider codes
+london_provider_codes = [
+    'RF4', 'R1H', 'RQM', 'RJ6', 'RVR', 'RJ1', 'RQX', 'RYJ', 
+    'RJZ', 'RAX', 'RJ2', 'R1K', 'RAP', 'RAL', 'RJ7', 'RAS', 'RRV', 'RKE'
+]
+
+# Set directory and output file
+input_directory = '/Users/ceilanhandy/DA_career/Coding/Projects/Cancer_NHS_type'
+output_file = os.path.join(input_directory, 'london_providers_62weeks.xlsx')
+
+all_data = []
+
+for filename in os.listdir(input_directory):
+    if filename.endswith('.xlsx') or filename.endswith('.xls'):
+        file_path = os.path.join(input_directory, filename)
+        print(f"\n📄 Processing {filename}...")
+        
+        try:
+            df = pd.read_excel(file_path)
+            print("✅ Loaded file successfully.")
+            print("🔍 Column names in file:", df.columns.tolist())  # ← Debugging step
+            
+            # Try to find provider column
+            provider_column = None
+            for col in df.columns:
+                if 'ORG' in col.upper() and 'CODE' in col.upper():
+                    provider_column = col
+                    break
+
+            if not provider_column:
+                print("⚠️ Could not find provider code column.")
+                continue
+
+            # Filter for London providers
+            london_data = df[df[provider_column].isin(london_provider_codes)]
+
+            if not london_data.empty:
+                london_data['Source_File'] = filename
+                all_data.append(london_data)
+                print(f"✅ Found {len(london_data)} records for London providers.")
+            else:
+                print("❌ No records matched London provider codes.")
+
+        except Exception as e:
+            print(f"❗Error processing {filename}: {str(e)}")
+
+# Combine and export
+if all_data:
+    combined_data = pd.concat(all_data, ignore_index=True)
+    combined_data.to_excel(output_file, index=False)
+    print(f"\n💾 Saved combined data to {output_file}")
+    print(f"📊 Total records: {len(combined_data)}")
+else:
+    print("🚫 No data extracted.")
+
+#Generated File was then filtered within excel to remove any unwanted columns and rows involving referral categories outside of the 62 week target and non-confirmed cancer types.
+# File is then moved into the LCP project folder for further analysis. 
+
+
+
+Stage 3. 
+Python was used to connect both ORG_CODES and Provider information within the case data 'london_providers_62weeks.xlsx'. 
+A new column was generated within 'london_providers_62weeks.xlsx' and using ORG_CODE as a reference, a corresponding Trust was attached to each entry. 
+
+Python Stage 3. Code:
+
+#Code to create Provider column that corresponds ORG codes within the london_providers_62weeks.xlsx
+import pandas as pd
+
+# Load your Excel file
+file_path = '/Users/ceilanhandy/DA_career/Coding/Projects/LCP Project/london_providers_62weeks.xlsx'  # Adjust the path as needed'
+df = pd.read_excel(file_path)
+
+# Print column names to help identify the ORG code column
+print("Columns in your data:", df.columns.tolist())
+
+# Specify which column contains the ORG codes
+org_column = 'ORG CODE'  # Replace with the actual column name in your file
+
+# Create a mapping dictionary of ORG codes to trust names
+# Replace these with your actual mappings
+org_to_trust_mapping = {
+    'RF4': 'BARKING, HAVERING AND REDBRIDGE UNIVERSITY HOSPITALS NHS TRUST',   
+    'R1H': 'BARTS HEALTH NHS TRUST',
+    'RQM': 'CHELSEA AND WESTMINSTER HOSPITAL NHS FOUNDATION TRUST',
+    'RJ6': 'CROYDON HEALTH SERVICES NHS TRUST',
+    'RVR': 'EPSOM AND ST HELIER UNIVERSITY HOSPITALS NHS TRUST',
+    'RJ1': 'GUY\'S AND ST THOMAS\' NHS FOUNDATION TRUST',
+    'RQX': 'HOMERTON HEALTHCARE NHS FOUNDATION TRUST',
+    'RYJ': 'IMPERIAL COLLEGE HEALTHCARE NHS TRUST',
+    'RJZ': 'KING\'S COLLEGE HOSPITAL NHS FOUNDATION TRUST',
+    'RAX': 'KINGSTON HOSPITAL NHS FOUNDATION TRUST',
+    'RJ2': 'LEWISHAM AND GREENWICH NHS TRUST',
+    'R1K': 'LONDON NORTH WEST UNIVERSITY HEALTHCARE NHS TRUST',
+    'RAP': 'NORTH MIDDLESEX UNIVERSITY HOSPITAL NHS TRUST',
+    'RAL': 'ROYAL FREE LONDON NHS FOUNDATION TRUST',
+    'RJ7': 'ST GEORGE\'S UNIVERSITY HOSPITALS NHS FOUNDATION TRUST',
+    'RAS': 'THE HILLINGDON HOSPITALS NHS FOUNDATION TRUST',
+    'RRV': 'UNIVERSITY COLLEGE LONDON HOSPITALS NHS FOUNDATION TRUST',
+    'RKE': 'WHITTINGTON HEALTH NHS TRUST',
+}
+    
+    # Add a new column with the trust names
+df['PROVIDER'] = df[org_column].map(org_to_trust_mapping)
+
+# Count how many were successfully mapped
+mapped_count = df['PROVIDER'].notna().sum()
+total_count = len(df)
+print(f"Successfully mapped {mapped_count} out of {total_count} rows ({mapped_count/total_count:.1%})")
+
+# Show unmapped ORG codes if any exist
+if mapped_count < total_count:
+    unmapped_orgs = df[df['PROVIDER'].isna()][org_column].unique()
+    print(f"Unmapped ORG codes ({len(unmapped_orgs)}):")
+    for org in unmapped_orgs[:20]:  # Show up to 20
+        print(f"  - {org}")
+
+# Save the updated file as Excel
+output_file = 'data_with_trust_names.xlsx'  # Name for your output file
+df.to_excel(output_file, index=False)
+print(f"Updated file saved to: {output_file}")
+
+#Data was then copied into transformed_data_62weeks.xlsx within sheet 2 to create one master file. 
+
+Cancer_NHS_type.xlsx and NHS_London_62.xlsx files were then combined into a Master_NHS_London_Cancer_62.xlsx file for use in Tableau. 
+
+Tableau public website: 
+URL: https://public.tableau.com/views/Healthanalyticsdashboard/Dashboard1?:language=en-GB&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link
+Embedded code: <div class='tableauPlaceholder' id='viz1745253510924' style='position: relative'><noscript><a href='#'><img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;He&#47;Healthanalyticsdashboard&#47;Dashboard1&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz'  style='display:none;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='site_root' value='' /><param name='name' value='Healthanalyticsdashboard&#47;Dashboard1' /><param name='tabs' value='no' /><param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;He&#47;Healthanalyticsdashboard&#47;Dashboard1&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-GB' /><param name='filter' value='publish=yes' /></object></div>                <script type='text/javascript'>                    var divElement = document.getElementById('viz1745253510924');                    var vizElement = divElement.getElementsByTagName('object')[0];                    vizElement.style.width='100%';vizElement.style.height=(divElement.offsetWidth*0.75)+'px';                    var scriptElement = document.createElement('script');                    scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';                    vizElement.parentNode.insertBefore(scriptElement, vizElement);                </script> 
+
+
