@@ -6,4 +6,4 @@ All files needed for to repeat the method are located in the LCP projects folder
 
 A detailed method, along with python code instructions, can be find in the methodology+python code section. 
 
-The project and its findings are presented through an interactive dashboard and a PDF report.
+The project and its findings are presented through an interactive dashboard (Health analytics Dashboard) and a PDF report.
