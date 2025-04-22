@@ -7,3 +7,6 @@ All files needed for to repeat the method are located in the LCP projects folder
 A detailed method, along with python code instructions, can be find in the methodology+python code section. 
 
 The project and its findings are presented through an interactive dashboard (Health analytics Dashboard) and a PDF report.
+
+Dashboard can be accessed via this link:
+https://public.tableau.com/views/Healthanalyticsdashboard/Dashboard1?:language=en-GB&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link
